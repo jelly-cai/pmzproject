@@ -4,9 +4,6 @@ package com.jellycai.test;
  * 字符串的工具类
  */
 public class StringUtils {
-
-
-
     /**
      * 字节直接转16进制字符串
      * @param byteArray
