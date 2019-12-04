@@ -1,8 +1,11 @@
 package com.jellycai.test;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
@@ -18,8 +21,10 @@ import com.xuhao.didi.socket.client.sdk.client.action.SocketActionAdapter;
 import com.xuhao.didi.socket.client.sdk.client.connection.IConnectionManager;
 
 import java.io.File;
+import java.util.Stack;
 
 import static android.widget.Toast.LENGTH_SHORT;
+import static com.jellycai.test.WeightSetActivity.DEFAULT_TIME;
 
 /**
  * 主页
@@ -38,8 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnServerSet;
     private Button btnWeightSet;
 
-    private int lastWeight;
-    private int lastTime;
+    private Stack<Integer> stack = new Stack<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 String ip = SpUtils.getStringValue(MainActivity.this, ServerSetActivity.IP_KEY);
-                int port = SpUtils.getIntegerValue(MainActivity.this, ServerSetActivity.PORT_KEY);
+                int port = SpUtils.getIntegerValue(MainActivity.this, ServerSetActivity.PORT_KEY,0);
                 if(TextUtils.isEmpty(ip) || port == 0){
                     Toast.makeText(MainActivity.this,"请设置服务器地址和端口",LENGTH_SHORT).show();
                     return;
@@ -113,6 +117,9 @@ public class MainActivity extends AppCompatActivity {
             public void onDataReceived(byte[] bytes) {
                 //获取重量
                 final int weight = Rs232Utils.getWeight(StringUtils.byteArrayToHexStr(bytes));
+                if(weight <= 0){
+                    return;
+                }
                 //写入主页
                 MainActivity.this.runOnUiThread(new Runnable() {
                     @Override
@@ -121,7 +128,14 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
                 //判断读数是否已经稳定下来
-
+                stack.push(weight);
+                if(stack.size() > 3){
+                    stack.pop();
+                }
+                boolean isAutoSend = SpUtils.getBooleanValue(MainActivity.this,ServerSetActivity.IS_AUTO_SEND,false);
+                if(isAutoSend && stack.get(0).equals(stack.get(1)) && stack.get(1).equals(stack.get(2))){
+                    sendWeight();
+                }
             }
 
             @Override
@@ -133,8 +147,13 @@ public class MainActivity extends AppCompatActivity {
         startLoopSendWeightMessage();
     }
 
+    private void sendWeight(){
+
+    }
+
     private void startLoopSendWeightMessage(){
-        sendWeightMessage();
+        int time = SpUtils.getIntegerValue(MainActivity.this,WeightSetActivity.TIME_KEY,DEFAULT_TIME);
+        handler.postDelayed(sendWeightTask,time * 1000);
     }
 
     private void sendWeightMessage(){
@@ -144,5 +163,23 @@ public class MainActivity extends AppCompatActivity {
         //发送串口数据
         mSerialPortManager.sendBytes(StringUtils.hexStrToByteArray("01030001000295CB"));
     }
+
+    private Handler handler = new Handler(){
+        @Override
+        public void handleMessage(@NonNull Message msg) {
+            if(msg.what == 1){
+                sendWeightMessage();
+            }
+        }
+    };
+
+    private Runnable sendWeightTask = new Runnable() {
+        @Override
+        public void run() {
+            handler.sendEmptyMessage(1);
+            int time = SpUtils.getIntegerValue(MainActivity.this,WeightSetActivity.TIME_KEY,DEFAULT_TIME);
+            handler.postDelayed(this, time * 1000);
+        }
+    };
 
 }

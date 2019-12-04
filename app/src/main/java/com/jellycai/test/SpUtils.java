@@ -69,9 +69,9 @@ public class SpUtils {
      * @param key
      * @return
      */
-    public static int getIntegerValue(Context context, String key) {
+    public static int getIntegerValue(Context context, String key,int defaultValue) {
         SharedPreferences sharedPreferences = context.getSharedPreferences("data", Context.MODE_PRIVATE);
-        return sharedPreferences.getInt(key, 0);
+        return sharedPreferences.getInt(key, defaultValue);
     }
 
     /**
@@ -81,9 +81,9 @@ public class SpUtils {
      * @param key
      * @return
      */
-    public static boolean getBooleanValue(Context context,String key){
+    public static boolean getBooleanValue(Context context,String key,boolean defaultValue){
         SharedPreferences sharedPreferences = context.getSharedPreferences("data", Context.MODE_PRIVATE);
-        return sharedPreferences.getBoolean(key, false);
+        return sharedPreferences.getBoolean(key, defaultValue);
     }
 
 }

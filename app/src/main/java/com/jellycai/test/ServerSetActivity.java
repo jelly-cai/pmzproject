@@ -65,12 +65,12 @@ public class ServerSetActivity extends AppCompatActivity {
 
     private void setInitView() {
         String ip = SpUtils.getStringValue(this, IP_KEY);
-        int port = SpUtils.getIntegerValue(this, PORT_KEY);
+        int port = SpUtils.getIntegerValue(this, PORT_KEY,0);
         etIp.setText(ip);
         if(port != 0){
             etPort.setText(port + "");
         }
-        boolean isAutoSend = SpUtils.getBooleanValue(this, IS_AUTO_SEND);
+        boolean isAutoSend = SpUtils.getBooleanValue(this, IS_AUTO_SEND,false);
         if (isAutoSend) {
             rbYes.setChecked(true);
         } else {

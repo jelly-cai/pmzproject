@@ -20,6 +20,8 @@ public class WeightSetActivity extends AppCompatActivity {
      */
     public static final String TIME_KEY = "time";
 
+    public static final int DEFAULT_TIME = 1;
+
     private EditText etTime;
     private Button btnSave;
     private Button btnBack;
@@ -31,20 +33,20 @@ public class WeightSetActivity extends AppCompatActivity {
         initView();
     }
 
-    private void initView(){
+    private void initView() {
         etTime = findViewById(R.id.et_time);
         btnSave = findViewById(R.id.btn_save);
         btnBack = findViewById(R.id.btn_back);
         setClickListener();
     }
 
-    private void setClickListener(){
+    private void setClickListener() {
         btnSave.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String timeString = etTime.getText().toString();
                 int time = Integer.parseInt(timeString);
-                SpUtils.saveValue(WeightSetActivity.this,TIME_KEY,time);
+                SpUtils.saveValue(WeightSetActivity.this, TIME_KEY, time);
             }
         });
         btnBack.setOnClickListener(new View.OnClickListener() {
@@ -55,8 +57,8 @@ public class WeightSetActivity extends AppCompatActivity {
         });
     }
 
-    public static void startActivity(Context context){
-        Intent intent = new Intent(context,WeightSetActivity.class);
+    public static void startActivity(Context context) {
+        Intent intent = new Intent(context, WeightSetActivity.class);
         context.startActivity(intent);
     }
 
