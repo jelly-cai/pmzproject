@@ -21,6 +21,8 @@ import com.xuhao.didi.socket.client.sdk.client.action.SocketActionAdapter;
 import com.xuhao.didi.socket.client.sdk.client.connection.IConnectionManager;
 
 import java.io.File;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Stack;
 
 import static android.widget.Toast.LENGTH_SHORT;
@@ -38,12 +40,13 @@ public class MainActivity extends AppCompatActivity {
     private SerialPortManager mSerialPortManager;
 
     private TextView tvResult;
+    private TextView tvUploadStatus;
     private Button btnOk;
     private Button btnSend;
     private Button btnServerSet;
     private Button btnWeightSet;
 
-    private Stack<Integer> stack = new Stack<>();
+    private Queue<Integer> queue = new LinkedList<Integer>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
         btnServerSet = findViewById(R.id.btn_server_set);
         btnWeightSet = findViewById(R.id.btn_weight_set);
         tvResult = findViewById(R.id.tv_result);
+        tvUploadStatus = findViewById(R.id.tv_upload_status);
     }
 
     private void initListener(){
@@ -117,23 +121,20 @@ public class MainActivity extends AppCompatActivity {
             public void onDataReceived(byte[] bytes) {
                 //获取重量
                 final int weight = Rs232Utils.getWeight(StringUtils.byteArrayToHexStr(bytes));
-                if(weight <= 0){
-                    return;
-                }
                 //写入主页
                 MainActivity.this.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        tvResult.setText(weight + "");
+                        tvResult.setText("重量: " + weight);
                     }
                 });
                 //判断读数是否已经稳定下来
-                stack.push(weight);
-                if(stack.size() > 3){
-                    stack.pop();
+                queue.offer(weight);
+                if(queue.size() > 3){
+                    queue.poll();
                 }
                 boolean isAutoSend = SpUtils.getBooleanValue(MainActivity.this,ServerSetActivity.IS_AUTO_SEND,false);
-                if(isAutoSend && stack.get(0).equals(stack.get(1)) && stack.get(1).equals(stack.get(2))){
+                if(isAutoSend && isWeightOk() != 0){
                     sendWeight();
                 }
             }
@@ -147,8 +148,37 @@ public class MainActivity extends AppCompatActivity {
         startLoopSendWeightMessage();
     }
 
-    private void sendWeight(){
+    private int isWeightOk(){
+        int temp = -1;
+        for(int i : queue){
+            if(temp == -1){
+                temp = i;
+            }else if(temp != i){
+                return 0;
+            }
+        }
+        return temp;
+    }
 
+    private void sendWeight(){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                tvUploadStatus.setText("正在上传重量...");
+            }
+        });
+        sendWeightSuccess();
+    }
+
+    private void sendWeightSuccess(){
+        queue.clear();
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                tvUploadStatus.setText("正在读取重量...");
+                Toast.makeText(MainActivity.this,"上传成功",Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void startLoopSendWeightMessage(){
