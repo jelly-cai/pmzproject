@@ -15,13 +15,13 @@ import android.widget.Toast;
 
 import com.kongqw.serialportlibrary.SerialPortManager;
 import com.kongqw.serialportlibrary.listener.OnSerialPortDataListener;
+import com.xuhao.didi.core.pojo.OriginalData;
 import com.xuhao.didi.socket.client.sdk.OkSocket;
 import com.xuhao.didi.socket.client.sdk.client.ConnectionInfo;
 import com.xuhao.didi.socket.client.sdk.client.action.SocketActionAdapter;
 import com.xuhao.didi.socket.client.sdk.client.connection.IConnectionManager;
 
 import java.io.File;
-import java.util.Stack;
 
 import static android.widget.Toast.LENGTH_SHORT;
 import static com.jellycai.test.WeightSetActivity.DEFAULT_TIME;
@@ -43,7 +43,9 @@ public class MainActivity extends AppCompatActivity {
     private Button btnServerSet;
     private Button btnWeightSet;
 
-    private Stack<Integer> stack = new Stack<>();
+    private int[] weights = new int[3];
+
+    private IConnectionManager manager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
         initSerialPort();
     }
 
-    private void initView(){
+    private void initView() {
         btnOk = findViewById(R.id.btn_ok);
         btnSend = findViewById(R.id.btn_send);
         btnServerSet = findViewById(R.id.btn_server_set);
@@ -62,7 +64,18 @@ public class MainActivity extends AppCompatActivity {
         tvResult = findViewById(R.id.tv_result);
     }
 
-    private void initListener(){
+    @Override
+    protected void onResume() {
+        super.onResume();
+        boolean isAutoSend = SpUtils.getBooleanValue(MainActivity.this, ServerSetActivity.IS_AUTO_SEND, false);
+        if(isAutoSend){
+            btnSend.setVisibility(View.GONE);
+        }else{
+            btnSend.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void initListener() {
         btnOk.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -72,25 +85,12 @@ public class MainActivity extends AppCompatActivity {
         btnSend.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String ip = SpUtils.getStringValue(MainActivity.this, ServerSetActivity.IP_KEY);
-                int port = SpUtils.getIntegerValue(MainActivity.this, ServerSetActivity.PORT_KEY,0);
-                if(TextUtils.isEmpty(ip) || port == 0){
-                    Toast.makeText(MainActivity.this,"请设置服务器地址和端口",LENGTH_SHORT).show();
-                    return;
+                int weight = getWeightForWeights();
+                if(weight != 0){
+                    sendWeight(weight);
+                }else{
+                    Toast.makeText(MainActivity.this,"没有重量读数", LENGTH_SHORT).show();
                 }
-                //连接参数设置(IP,端口号),这也是一个连接的唯一标识,不同连接,该参数中的两个值至少有其一不一样
-                ConnectionInfo info = new ConnectionInfo(ip, port);
-                //调用OkSocket,开启这次连接的通道,拿到通道Manager
-                IConnectionManager manager = OkSocket.open(info);
-                //注册Socket行为监听器,SocketActionAdapter是回调的Simple类,其他回调方法请参阅类文档
-                manager.registerReceiver(new SocketActionAdapter(){
-                    @Override
-                    public void onSocketConnectionSuccess(ConnectionInfo info, String action) {
-                        //Toast.makeText(MainActivity.this, "连接成功", LENGTH_SHORT).show();
-                    }
-                });
-                //调用通道进行连接
-                manager.connect();
             }
         });
         btnServerSet.setOnClickListener(new View.OnClickListener() {
@@ -108,16 +108,66 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * 添加重量到数组
+     *
+     * @param weight
+     */
+    private void addWeight(int weight) {
+        boolean isAdd = false;
+        for (int i = 0; i < weights.length; i++) {
+            if (weights[i] == 0) {
+                weights[i] = weight;
+                isAdd = true;
+                break;
+            }
+        }
+        if (!isAdd) {
+            for (int i = 1; i < weights.length; i++) {
+                weights[i - 1] = weights[i];
+            }
+            weights[weights.length - 1] = weight;
+        }
+    }
+
+    /**
+     * 读数是否稳定下来
+     *
+     * @return
+     */
+    private boolean isStable() {
+        int w = weights[0];
+        for (int i = 1; i < weights.length; i++) {
+            if (w != weights[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 从数组中获得最新重量
+     * @return
+     */
+    private int getWeightForWeights() {
+        for (int i = weights.length - 1; i >= 0; i--) {
+            if(weights[i] != 0){
+                return weights[i];
+            }
+        }
+        return 0;
+    }
+
+    /**
      * 初始化端口
      */
-    private void initSerialPort(){
+    private void initSerialPort() {
         mSerialPortManager = new SerialPortManager();
         mSerialPortManager.setOnSerialPortDataListener(new OnSerialPortDataListener() {
             @Override
             public void onDataReceived(byte[] bytes) {
                 //获取重量
                 final int weight = Rs232Utils.getWeight(StringUtils.byteArrayToHexStr(bytes));
-                if(weight <= 0){
+                if (weight <= 0) {
                     return;
                 }
                 //写入主页
@@ -128,13 +178,11 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
                 //判断读数是否已经稳定下来
-                stack.push(weight);
-                if(stack.size() > 3){
-                    stack.pop();
-                }
-                boolean isAutoSend = SpUtils.getBooleanValue(MainActivity.this,ServerSetActivity.IS_AUTO_SEND,false);
-                if(isAutoSend && stack.get(0).equals(stack.get(1)) && stack.get(1).equals(stack.get(2))){
-                    sendWeight();
+                addWeight(weight);
+                boolean isAutoSend = SpUtils.getBooleanValue(MainActivity.this, ServerSetActivity.IS_AUTO_SEND, false);
+                if (isAutoSend && isStable() && weights[0] != 0) {
+                    stopLoopSendGetWeightMessage();
+                    sendWeight(weight);
                 }
             }
 
@@ -144,41 +192,93 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         mSerialPortManager.openSerialPort(new File(RS232_FILE_NAME), 9600);
-        startLoopSendWeightMessage();
+        startLoopSendGetWeightMessage();
     }
 
-    private void sendWeight(){
+    private void sendWeight(int weight) {
+        String ip = SpUtils.getStringValue(MainActivity.this, ServerSetActivity.IP_KEY);
+        int port = SpUtils.getIntegerValue(MainActivity.this, ServerSetActivity.PORT_KEY, 0);
+        if (TextUtils.isEmpty(ip) || port == 0) {
+            Toast.makeText(MainActivity.this, "请设置服务器地址和端口", LENGTH_SHORT).show();
+            return;
+        }
+        //连接参数设置(IP,端口号),这也是一个连接的唯一标识,不同连接,该参数中的两个值至少有其一不一样
+        ConnectionInfo info = new ConnectionInfo(ip, port);
+        //调用Socket,开启这次连接的通道,拿到通道Manager
+        manager = OkSocket.open(info);
+        //注册Socket行为监听器,SocketActionAdapter是回调的Simple类,其他回调方法请参阅类文档
+        manager.registerReceiver(new SocketActionAdapter() {
+            @Override
+            public void onSocketConnectionSuccess(ConnectionInfo info, String action) {
+                Toast.makeText(MainActivity.this, "连接成功", LENGTH_SHORT).show();
+            }
 
+            @Override
+            public void onSocketReadResponse(ConnectionInfo info, String action, OriginalData data) {
+                super.onSocketReadResponse(info, action, data);
+                String response = new String(data.getBodyBytes());
+                Toast.makeText(MainActivity.this, response, LENGTH_SHORT).show();
+                handler.removeCallbacks(sendWeightTask);
+                startLoopSendGetWeightMessage();
+            }
+        });
+        //调用通道进行连接
+        manager.connect();
+        manager.send(new SendWeightData(weight));
+        handler.postDelayed(sendWeightTask,20 * 1000);
     }
 
-    private void startLoopSendWeightMessage(){
-        int time = SpUtils.getIntegerValue(MainActivity.this,WeightSetActivity.TIME_KEY,DEFAULT_TIME);
-        handler.postDelayed(sendWeightTask,time * 1000);
+
+
+    /**
+     * 开启循环获取重量
+     */
+    private void startLoopSendGetWeightMessage() {
+        int time = SpUtils.getIntegerValue(MainActivity.this, WeightSetActivity.TIME_KEY, DEFAULT_TIME);
+        handler.postDelayed(sendGetWeightTask, time * 1000);
     }
 
-    private void sendWeightMessage(){
-        if(mSerialPortManager == null){
+    /**
+     * 关闭循环获取重量
+     */
+    private void stopLoopSendGetWeightMessage(){
+        handler.removeCallbacks(sendGetWeightTask);
+    }
+
+    private void sendWeightMessage() {
+        if (mSerialPortManager == null) {
             return;
         }
         //发送串口数据
         mSerialPortManager.sendBytes(StringUtils.hexStrToByteArray("01030001000295CB"));
     }
 
-    private Handler handler = new Handler(){
+    private Handler handler = new Handler() {
         @Override
         public void handleMessage(@NonNull Message msg) {
-            if(msg.what == 1){
+            if (msg.what == 1) {
                 sendWeightMessage();
             }
+        }
+    };
+
+    private Runnable sendGetWeightTask = new Runnable() {
+        @Override
+        public void run() {
+            handler.sendEmptyMessage(1);
+            int time = SpUtils.getIntegerValue(MainActivity.this, WeightSetActivity.TIME_KEY, DEFAULT_TIME);
+            handler.postDelayed(this, time * 1000);
         }
     };
 
     private Runnable sendWeightTask = new Runnable() {
         @Override
         public void run() {
-            handler.sendEmptyMessage(1);
-            int time = SpUtils.getIntegerValue(MainActivity.this,WeightSetActivity.TIME_KEY,DEFAULT_TIME);
-            handler.postDelayed(this, time * 1000);
+            if(manager != null){
+                manager.disconnect();
+                manager = null;
+            }
+            sendWeight(getWeightForWeights());
         }
     };
 

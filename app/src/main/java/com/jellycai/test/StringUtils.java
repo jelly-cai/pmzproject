@@ -1,5 +1,9 @@
 package com.jellycai.test;
 
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 /**
  * 字符串的工具类
  */
@@ -80,6 +84,15 @@ public class StringUtils {
             c = "0" + c.substring(1, 2) + "0" + c.substring(0, 1);
         }
         return c;
+    }
+
+    /**
+     * 获得当前的日期
+     * @return
+     */
+    public static String getDate(){
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
+        return simpleDateFormat.format(new Date());
     }
 
 }
