@@ -67,6 +67,20 @@
 
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/tv_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="自动获取重量的时间间隔(秒):"
+        android:textSize="20sp" />
+
+    <EditText
+        android:id="@+id/et_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="number">
+    </EditText>
+
     <Button
         android:id="@+id/btn_save"
         android:layout_width="match_parent"
